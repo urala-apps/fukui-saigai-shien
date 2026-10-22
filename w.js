@@ -111,12 +111,14 @@ form button:disabled{opacity:.5}
     const wait = say("確認しています…", "bot wait");
     try {
       const res = await fetch(`${cfg.api}?bot=${id}`, { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ bot: id, messages: history.slice(-8) }) });
+        body: JSON.stringify({ bot: id, messages: history.slice(-12) }) });
       const j = await res.json().catch(() => ({}));
       wait.remove();
       if (!res.ok || !j.answer) { local(q); return; }
       history.push({ role: "assistant", content: j.answer });
       say(j.answer, "bot", j.src);
+      // 聞き返しのときは、答えやすいよう選択肢をボタンで出す
+      chips((Array.isArray(j.choices) ? j.choices : []).filter((c) => typeof c === "string" && c).slice(0, 4).map((c) => c.slice(0, 40)));
       if (j.handoff) contact();
     } catch { wait.remove(); local(q); }
   }
