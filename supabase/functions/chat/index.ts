@@ -3,26 +3,27 @@
 //   - お客さんの設定・資料は配信元（GitHub Pages）の bots/<bot>.json と、そこに書いた knowledge のファイル
 //   - 呼び出し元は設定の allowed_origins に書いたドメインだけ
 //   - お客さんごとの月の上限は chat_usage 表で数える（上限を超えたら FAQ に任せる）
-// 環境変数：ANTHROPIC_API_KEY、BOTS_BASE（例 https://chat.example.jp/）、SUPABASE_URL、SUPABASE_SERVICE_ROLE_KEY
+// 環境変数：ANTHROPIC_API_KEY（Secrets に入れる）。BOTS_BASE は省略すると GitHub Pages の配信元。SUPABASE_URL・SUPABASE_SERVICE_ROLE_KEY は自動で入る
+// デプロイは verify_jwt を切る（埋め込み先のサイトから鍵なしで呼ぶため。呼び出し元は allowed_origins で絞る）
 import Anthropic from "npm:@anthropic-ai/sdk";
-import { zodOutputFormat } from "npm:@anthropic-ai/sdk/helpers/zod";
-import { z } from "npm:zod";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const MODEL = "claude-haiku-5-5";
-const BOTS_BASE = Deno.env.get("BOTS_BASE") ?? "";
-const client = new Anthropic();
+const BOTS_BASE = Deno.env.get("BOTS_BASE") ?? "https://urala-apps.github.io/fukui-saigai-shien/";
+let client: Anthropic | null = null;  // 鍵が入る前でも落ちないよう、使うときに作る
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
 type Bot = { id: string; name: string; allowed_origins: string[]; knowledge?: string[]; monthly_limit?: number; contact_note?: string };
 type Loaded = { bot: Bot; system: string; at: number };
 const cache = new Map<string, Loaded>();
 
-const Answer = z.object({
-  answer: z.string(),
-  src: z.string(),
-  handoff: z.boolean(),
-});
+type Answer = { answer: string; src: string; handoff: boolean };
+const ANSWER_SCHEMA = {
+  type: "object",
+  properties: { answer: { type: "string" }, src: { type: "string" }, handoff: { type: "boolean" } },
+  required: ["answer", "src", "handoff"],
+  additionalProperties: false,
+};
 
 async function load(id: string): Promise<Loaded | null> {
   const hit = cache.get(id);
@@ -93,15 +94,20 @@ Deno.serve(async (req) => {
   if (uerr || Number(used) > (loaded.bot.monthly_limit ?? 1000)) return reply(origin, 429, { error: "limit" });
 
   try {
-    const res = await client.messages.parse({
+    client ??= new Anthropic();
+    const res = await client.messages.create({
       model: MODEL,
       max_tokens: 4000,
-      output_config: { effort: "low", format: zodOutputFormat(Answer) },
+      output_config: { effort: "low", format: { type: "json_schema", schema: ANSWER_SCHEMA } },
       system: [{ type: "text", text: loaded.system, cache_control: { type: "ephemeral" } }],
       messages: msgs,
     });
-    if (res.stop_reason === "refusal" || !res.parsed_output) return reply(origin, 200, { answer: "その内容にはお答えできません。窓口へお問い合わせください。", src: "", handoff: true });
-    return reply(origin, 200, res.parsed_output);
+    const text = res.content.find((b) => b.type === "text");
+    let out: Answer | null = null;
+    if (res.stop_reason === "end_turn" && text?.type === "text") { try { out = JSON.parse(text.text); } catch { out = null; } }
+    if (!out?.answer) return reply(origin, 200, { answer: "その内容にはお答えできません。窓口へお問い合わせください。", src: "", handoff: true });
+    console.log(JSON.stringify({ bot: id, usage: res.usage }));
+    return reply(origin, 200, { answer: out.answer, src: out.src, handoff: out.handoff });
   } catch (e) {
     if (e instanceof Anthropic.RateLimitError) return reply(origin, 429, { error: "busy" });
     console.error(e instanceof Anthropic.APIError ? `${e.status} ${e.message}` : e);
