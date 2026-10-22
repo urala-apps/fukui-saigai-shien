@@ -29,13 +29,19 @@
 
   // ---- 画面 ----
   const host = document.createElement("div");
-  host.style.cssText = "all:initial;position:fixed;z-index:2147483000;right:16px;bottom:16px;";
+  // 置き場所は 0×0 にして、ボタンと小窓をそれぞれ画面に固定する（host に transform を付けると fixed がずれるので付けない）
+  host.style.cssText = "all:initial;position:fixed;z-index:2147483000;right:0;top:0;width:0;height:0;";
   const root = host.attachShadow({ mode: "open" });
   root.innerHTML = `<style>
 :host{--c:#1d5fa8;--bg:#fff;--ink:#1f2328;--mut:#5f6670;--line:#e3e6ea;--me:#eef3fa}
 @media (prefers-color-scheme:dark){:host{--bg:#1c1f24;--ink:#e8eaed;--mut:#a3a9b1;--line:#30353c;--me:#24303f}}
 *{box-sizing:border-box;font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
-.btn{display:flex;align-items:center;gap:8px;border:0;border-radius:999px;padding:12px 18px;background:var(--c);color:#fff;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px #0003}
+/* 画面の右端・縦の真ん中に付いてくる縦長のタブ */
+.btn{position:fixed;right:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:12px;border:0;border-radius:16px 0 0 16px;padding:24px 16px 26px;background:var(--c);color:#fff;font-size:21px;font-weight:700;cursor:pointer;box-shadow:-2px 4px 16px #0003}
+.btn .ic{font-size:28px}
+.btn .tx{display:flex;flex-direction:column;align-items:center;line-height:1.15}
+.btn:hover{padding-right:18px}
+@media (max-width:480px){.btn{font-size:18px;padding:18px 12px 20px;gap:10px}.btn .ic{font-size:24px}}
 .btn:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(--c);outline-offset:2px}
 .panel{position:fixed;right:16px;bottom:16px;width:380px;max-width:calc(100vw - 32px);height:600px;max-height:calc(100vh - 32px);background:var(--bg);color:var(--ink);border-radius:16px;box-shadow:0 8px 32px #0004;display:flex;flex-direction:column;overflow:hidden}
 .panel[hidden],.btn[hidden]{display:none}
@@ -66,7 +72,7 @@ form button.mic.on{background:#d9473a;border-color:#d9473a;color:#fff;animation:
 .foot{padding:0 12px 8px;font-size:11px;color:var(--mut)}
 @media (max-width:480px){.panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100%;max-height:100%;border-radius:0}}
 </style>
-<button class="btn" type="button" aria-haspopup="dialog">💬 <span>質問する</span></button>
+<button class="btn" type="button" aria-haspopup="dialog" aria-label="質問する"><span class="ic" aria-hidden="true">💬</span><span class="tx" aria-hidden="true"><span>質</span><span>問</span><span>す</span><span>る</span></span></button>
 <div class="panel" role="dialog" aria-modal="false" hidden>
   <header><b></b><button type="button" class="x" aria-label="閉じる">×</button></header>
   <div class="log" aria-live="polite"></div>
