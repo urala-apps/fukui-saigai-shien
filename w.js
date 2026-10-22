@@ -66,9 +66,14 @@
 @keyframes look{0%,100%{transform:translateX(0)}25%{transform:translateX(-1.6px)}75%{transform:translateX(1.6px)}}
 @keyframes glow{50%{fill:#fff6c9;filter:drop-shadow(0 0 3px #ffd34d)}}
 header .ch{width:30px;height:30px;flex:none}
-.wait{display:flex;align-items:center;gap:8px;color:var(--mut)}
-.wait .av{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--c);flex:none}
-.wait .ch{width:28px;height:28px}
+/* AI の答えの横にいつもキャラクター。動くのは最新の1体だけ */
+.row{display:flex;align-items:flex-start;gap:8px;align-self:flex-start;max-width:94%}
+.row .m{max-width:none;min-width:0}
+.av{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--c);flex:none}
+.av .ch{width:28px;height:28px}
+.av.still .ch,.av.still .ch *{animation:none}
+.wait .m{display:flex;align-items:center;gap:2px;color:var(--mut)}
+.log>.chips,.log>.links,.log>.note{margin-left:46px}
 .dots i{font-style:normal;animation:dot 1.2s infinite}.dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
 @keyframes dot{0%,60%,100%{opacity:.2}30%{opacity:1}}
 @media (prefers-reduced-motion:reduce){.ch,.ch *,.dots i{animation:none!important}}
@@ -116,10 +121,18 @@ form button.mic.on{background:#d9473a;border-color:#d9473a;color:#fff;animation:
   let cfg = null, started = false, busy = false;
   const history = [];
 
+  // AI 側の発言は、キャラクターと並べた行にする（前のキャラクターは止める）
+  function botRow(cls, think) {
+    for (const a of log.querySelectorAll(".av")) a.classList.add("still");
+    const row = el("div", "row" + (cls ? " " + cls : ""));
+    const av = el("span", "av"); av.innerHTML = CH(think ? "ch think" : "ch");
+    row.append(av); log.append(row); return row;
+  }
   function say(text, who, src) {
     const m = el("div", "m " + who, text);
     if (src) m.append(el("span", "src", "出典：" + src));
-    log.append(m); scroll(); return m;
+    if (who.startsWith("bot")) botRow().append(m); else log.append(m);
+    scroll(); return m;
   }
   function chips(list) {
     if (!list.length) return;
@@ -149,9 +162,9 @@ form button.mic.on{background:#d9473a;border-color:#d9473a;color:#fff;animation:
   }
 
   async function ai(q) {
-    const wait = el("div", "m bot wait");
-    wait.innerHTML = `<span class="av">${CH("ch think")}</span><span>確認しています</span><span class="dots"><i>・</i><i>・</i><i>・</i></span>`;
-    log.append(wait); scroll();
+    const wait = botRow("wait", true), wm = el("div", "m bot");
+    wm.innerHTML = `<span>確認しています</span><span class="dots"><i>・</i><i>・</i><i>・</i></span>`;
+    wait.append(wm); scroll();
     try {
       const res = await fetch(`${cfg.api}?bot=${id}`, { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ bot: id, messages: history.slice(-12) }) });
