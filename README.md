@@ -25,7 +25,7 @@
 | `bots/<id>.*.txt` | AI に読ませる資料（`knowledge` に書いたもの） |
 | `supabase/functions/chat/` | AI で答える Edge Function（Claude Haiku 5.5） |
 | `supabase/migrations/` | お客さんごとの月の回数を数える表（`chat_usage`）と、公開しない参考メモの表（`chat_notes`） |
-| `index.html` | 見本のページ（右端に「質問する」のタブが出る） |
+| `index.html` | 見本のページ（右端に「AIに質問する」のタブが出る） |
 
 ## 書き方の決まり
 
