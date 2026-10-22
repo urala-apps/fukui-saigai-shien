@@ -4,8 +4,7 @@
   "title": "補助金のご質問",
   "color": "#1d5fa8",
   "allowed_origins": [
-    "https://fukui-saigai-shien.jp",
-    "https://www.fukui-saigai-shien.jp"
+    "https://urala-apps.github.io"
   ],
   "api": null,
   "knowledge": [

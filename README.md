@@ -4,7 +4,7 @@
 最初のお客さんは「福井県大雨被災事業者再建支援補助金」の運営事務局です。
 
 ```html
-<script src="https://（配信元）/w.js" data-id="saigai" async></script>
+<script src="https://urala-apps.github.io/fukui-saigai-shien/w.js" data-id="saigai" async></script>
 ```
 
 お客さんが触るのはこの1行だけです。答えの中身・色・問い合わせ先は、このリポジトリの設定を直せば反映されます。
@@ -42,7 +42,7 @@
 ## AI で答えるようにする
 
 1. Supabase に `supabase/migrations/` を当て、`supabase/functions/chat` をデプロイする
-2. Edge Function の環境変数：`ANTHROPIC_API_KEY`、`BOTS_BASE`（w.js の配信元。例 `https://chat.example.jp/`）
+2. Edge Function の環境変数：`ANTHROPIC_API_KEY`、`BOTS_BASE`（w.js の配信元。`https://urala-apps.github.io/fukui-saigai-shien/`）
 3. `bots/<id>.json` の `api` に Edge Function の URL を書く
 
 AI がつながらないとき・月の上限を超えたときは、自動で FAQ の答えに切り替わります。
