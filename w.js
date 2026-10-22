@@ -57,6 +57,12 @@ form{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}
 input{flex:1;min-width:0;font-size:16px;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
 form button{border:0;border-radius:10px;padding:0 14px;background:var(--c);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
 form button:disabled{opacity:.5}
+form button.mic{display:grid;place-items:center;width:42px;padding:0;background:var(--bg);color:var(--c);border:1.5px solid var(--c)}
+form button.mic[hidden]{display:none}
+form button.mic svg{width:20px;height:20px}
+form button.mic.on{background:#d9473a;border-color:#d9473a;color:#fff;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 6px #d9473a33}}
+@media (prefers-reduced-motion:reduce){form button.mic.on{animation:none}}
 .foot{padding:0 12px 8px;font-size:11px;color:var(--mut)}
 @media (max-width:480px){.panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100%;max-height:100%;border-radius:0}}
 </style>
@@ -64,11 +70,11 @@ form button:disabled{opacity:.5}
 <div class="panel" role="dialog" aria-modal="false" hidden>
   <header><b></b><button type="button" class="x" aria-label="閉じる">×</button></header>
   <div class="log" aria-live="polite"></div>
-  <form><input type="text" maxlength="300" placeholder="ご質問を入力" aria-label="ご質問"><button type="submit">送信</button></form>
+  <form><input type="text" maxlength="300" placeholder="ご質問を入力" aria-label="ご質問"><button type="button" class="mic" aria-label="音声で入力" aria-pressed="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg></button><button type="submit">送信</button></form>
   <div class="foot"></div>
 </div>`;
   const $ = (s) => root.querySelector(s);
-  const btn = $(".btn"), panel = $(".panel"), log = $(".log"), form = $("form"), input = $("input"), send = $("form button");
+  const btn = $(".btn"), panel = $(".panel"), log = $(".log"), form = $("form"), input = $("input"), send = $("button[type=submit]"), mic = $(".mic");
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const scroll = () => { log.scrollTop = log.scrollHeight; };
 
@@ -146,12 +152,37 @@ form button:disabled{opacity:.5}
     if (!started) { started = true; say(cfg.greeting, "bot"); chips(cfg.starters || []); }
     input.focus();
   }
-  function close() { panel.hidden = true; btn.hidden = false; btn.focus(); }
+  function close() { if (rec) rec.abort(); panel.hidden = true; btn.hidden = false; btn.focus(); }
+
+  // 音声入力（ブラウザの音声認識。使えないブラウザではボタンを出さない）
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null;
+  if (SR) {
+    mic.hidden = false;
+    const ph = input.placeholder;
+    const stop = () => { mic.classList.remove("on"); mic.setAttribute("aria-pressed", "false"); input.placeholder = ph; rec = null; };
+    mic.onclick = () => {
+      if (rec) { rec.stop(); return; }
+      rec = new SR();
+      rec.lang = "ja-JP"; rec.interimResults = true; rec.continuous = false;
+      const before = input.value ? input.value + " " : "";
+      rec.onresult = (e) => { input.value = before + [...e.results].map((r) => r[0].transcript).join(""); };
+      rec.onerror = (e) => {
+        if (e.error === "not-allowed" || e.error === "service-not-allowed") say("マイクが使えませんでした。ブラウザの設定でマイクを許可するか、文字で入力してください。", "bot");
+        else if (e.error === "no-speech") input.placeholder = "聞き取れませんでした。もう一度どうぞ";
+      };
+      rec.onend = () => { const p = input.placeholder; stop(); if (p !== "お話しください…") input.placeholder = p; input.focus(); };
+      try {
+        rec.start();
+        mic.classList.add("on"); mic.setAttribute("aria-pressed", "true"); input.placeholder = "お話しください…";
+      } catch { stop(); }
+    };
+  }
 
   btn.onclick = open;
   $(".x").onclick = close;
   panel.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
-  form.onsubmit = (e) => { e.preventDefault(); const q = input.value; input.value = ""; ask(q); };
+  form.onsubmit = (e) => { e.preventDefault(); if (rec) rec.abort(); const q = input.value; input.value = ""; ask(q); };
   if (me.dataset.color) host.style.setProperty("--c", me.dataset.color);
   (document.body || document.documentElement).append(host);
 })();
