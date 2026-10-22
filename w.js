@@ -31,17 +31,47 @@
   const host = document.createElement("div");
   // 置き場所は 0×0 にして、ボタンと小窓をそれぞれ画面に固定する（host に transform を付けると fixed がずれるので付けない）
   host.style.cssText = "all:initial;position:fixed;z-index:2147483000;right:0;top:0;width:0;height:0;";
+  // キャラクター（SVG）。cls で大きさ・動きを切り替える（ch：ふだん、think：考え中）
+  const CH = (cls) => `<svg class="${cls}" viewBox="0 0 48 48" aria-hidden="true">
+<line x1="24" y1="11" x2="24" y2="5" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><circle class="bulb" cx="24" cy="4.5" r="3.2"/>
+<rect x="3" y="21" width="5" height="10" rx="2.5" fill="#fff"/><rect x="40" y="21" width="5" height="10" rx="2.5" fill="#fff"/>
+<rect x="6" y="11" width="36" height="31" rx="14" fill="#fff"/><rect class="face" x="11" y="17" width="26" height="18" rx="8"/>
+<ellipse class="eye" cx="19" cy="25" rx="2.6" ry="3.4" fill="#fff"/><ellipse class="eye" cx="29" cy="25" rx="2.6" ry="3.4" fill="#fff"/>
+<path d="M20.5 30.5q3.5 2.6 7 0" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
+<circle cx="9.5" cy="36" r="2.2" fill="#ffb3b3"/><circle cx="38.5" cy="36" r="2.2" fill="#ffb3b3"/></svg>`;
+
   const root = host.attachShadow({ mode: "open" });
   root.innerHTML = `<style>
 :host{--c:#1d5fa8;--bg:#fff;--ink:#1f2328;--mut:#5f6670;--line:#e3e6ea;--me:#eef3fa}
 @media (prefers-color-scheme:dark){:host{--bg:#1c1f24;--ink:#e8eaed;--mut:#a3a9b1;--line:#30353c;--me:#24303f}}
 *{box-sizing:border-box;font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
 /* 画面の右端・縦の真ん中に付いてくる縦長のタブ */
-.btn{position:fixed;right:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:12px;border:0;border-radius:16px 0 0 16px;padding:24px 16px 26px;background:var(--c);color:#fff;font-size:21px;font-weight:700;cursor:pointer;box-shadow:-2px 4px 16px #0003}
-.btn .ic{font-size:28px}
-.btn .tx{display:flex;flex-direction:column;align-items:center;line-height:1.15}
+.btn{position:fixed;right:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:12px;border:0;border-radius:16px 0 0 16px;padding:20px 14px 22px;background:var(--c);color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:-2px 4px 16px #0003}
+.btn .ch{width:52px;height:52px}
+.btn .tx{display:flex;flex-direction:column;align-items:center;line-height:1.12}
 .btn:hover{padding-right:18px}
-@media (max-width:480px){.btn{font-size:18px;padding:18px 12px 20px;gap:10px}.btn .ic{font-size:24px}}
+@media (max-width:480px){.btn{font-size:16px;padding:14px 10px 16px;gap:8px}.btn .ch{width:42px;height:42px}}
+/* キャラクターの動き：ふだんはふわふわ＋まばたき、考え中はアンテナが光って目がきょろきょろ */
+.ch{overflow:visible;animation:bob 2.8s ease-in-out infinite}
+.ch .face{fill:var(--c)}
+.ch .bulb{fill:#ffd34d;animation:glow 2.8s ease-in-out infinite}
+.ch .eye{transform-box:fill-box;transform-origin:center;animation:blink 4.6s infinite}
+.ch.think{animation-duration:1.1s}
+.ch.think .bulb{animation-duration:.7s}
+.ch.think .eye{animation:look 1.8s ease-in-out infinite}
+.btn:hover .ch{animation:hop .5s ease-out}
+@keyframes bob{50%{transform:translateY(-3px)}}
+@keyframes hop{40%{transform:translateY(-6px) rotate(-6deg)}70%{transform:translateY(0) rotate(4deg)}}
+@keyframes blink{0%,91%,97%,100%{transform:scaleY(1)}94%{transform:scaleY(.1)}}
+@keyframes look{0%,100%{transform:translateX(0)}25%{transform:translateX(-1.6px)}75%{transform:translateX(1.6px)}}
+@keyframes glow{50%{fill:#fff6c9;filter:drop-shadow(0 0 3px #ffd34d)}}
+header .ch{width:30px;height:30px;flex:none}
+.wait{display:flex;align-items:center;gap:8px;color:var(--mut)}
+.wait .av{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--c);flex:none}
+.wait .ch{width:28px;height:28px}
+.dots i{font-style:normal;animation:dot 1.2s infinite}.dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
+@keyframes dot{0%,60%,100%{opacity:.2}30%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.ch,.ch *,.dots i{animation:none!important}}
 .btn:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(--c);outline-offset:2px}
 .panel{position:fixed;right:16px;bottom:16px;width:380px;max-width:calc(100vw - 32px);height:600px;max-height:calc(100vh - 32px);background:var(--bg);color:var(--ink);border-radius:16px;box-shadow:0 8px 32px #0004;display:flex;flex-direction:column;overflow:hidden}
 .panel[hidden],.btn[hidden]{display:none}
@@ -58,7 +88,6 @@ header button{background:none;border:0;color:#fff;font-size:22px;line-height:1;c
 .links{display:flex;flex-direction:column;gap:6px}
 .links a{display:block;text-align:center;border-radius:10px;padding:9px;background:var(--c);color:#fff;text-decoration:none;font-size:14px;font-weight:700}
 .note{font-size:12px;color:var(--mut)}
-.wait{color:var(--mut)}
 form{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}
 input{flex:1;min-width:0;font-size:16px;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
 form button{border:0;border-radius:10px;padding:0 14px;background:var(--c);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
@@ -72,9 +101,9 @@ form button.mic.on{background:#d9473a;border-color:#d9473a;color:#fff;animation:
 .foot{padding:0 12px 8px;font-size:11px;color:var(--mut)}
 @media (max-width:480px){.panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100%;max-height:100%;border-radius:0}}
 </style>
-<button class="btn" type="button" aria-haspopup="dialog" aria-label="質問する"><span class="ic" aria-hidden="true">💬</span><span class="tx" aria-hidden="true"><span>質</span><span>問</span><span>す</span><span>る</span></span></button>
+<button class="btn" type="button" aria-haspopup="dialog" aria-label="AIに質問する">${CH("ch")}<span class="tx" aria-hidden="true"><span>A</span><span>I</span><span>に</span><span>質</span><span>問</span><span>す</span><span>る</span></span></button>
 <div class="panel" role="dialog" aria-modal="false" hidden>
-  <header><b></b><button type="button" class="x" aria-label="閉じる">×</button></header>
+  <header>${CH("ch")}<b></b><button type="button" class="x" aria-label="閉じる">×</button></header>
   <div class="log" aria-live="polite"></div>
   <form><input type="text" maxlength="300" placeholder="ご質問を入力" aria-label="ご質問"><button type="button" class="mic" aria-label="音声で入力" aria-pressed="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg></button><button type="submit">送信</button></form>
   <div class="foot"></div>
@@ -120,7 +149,9 @@ form button.mic.on{background:#d9473a;border-color:#d9473a;color:#fff;animation:
   }
 
   async function ai(q) {
-    const wait = say("確認しています…", "bot wait");
+    const wait = el("div", "m bot wait");
+    wait.innerHTML = `<span class="av">${CH("ch think")}</span><span>確認しています</span><span class="dots"><i>・</i><i>・</i><i>・</i></span>`;
+    log.append(wait); scroll();
     try {
       const res = await fetch(`${cfg.api}?bot=${id}`, { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ bot: id, messages: history.slice(-12) }) });
