@@ -1,5 +1,5 @@
 // お問い合わせチャットの AI 回答（Supabase Edge Function）
-//   POST { bot, messages: [{ role, content }] } → { answer, src, handoff }
+//   POST { bot, messages: [{ role, content }] } → { answer, src, choices, handoff }
 //   - お客さんの設定・資料は配信元（GitHub Pages）の bots/<bot>.json と、そこに書いた knowledge のファイル
 //   - 公開しない参考メモは chat_notes 表（個人名などを除いて入れる）。AI には「補足」の資料として渡し、出どころは言わせない
 //   - 呼び出し元は設定の allowed_origins に書いたドメインだけ
@@ -18,11 +18,14 @@ type Bot = { id: string; name: string; allowed_origins: string[]; knowledge?: st
 type Loaded = { bot: Bot; system: string; at: number };
 const cache = new Map<string, Loaded>();
 
-type Answer = { answer: string; src: string; handoff: boolean };
+type Answer = { answer: string; src: string; choices: string[]; handoff: boolean };
 const ANSWER_SCHEMA = {
   type: "object",
-  properties: { answer: { type: "string" }, src: { type: "string" }, handoff: { type: "boolean" } },
-  required: ["answer", "src", "handoff"],
+  properties: {
+    answer: { type: "string" }, src: { type: "string" },
+    choices: { type: "array", items: { type: "string" } }, handoff: { type: "boolean" },
+  },
+  required: ["answer", "src", "choices", "handoff"],
   additionalProperties: false,
 };
 
@@ -42,9 +45,22 @@ async function load(id: string): Promise<Loaded | null> {
   const faq = (bot.faq ?? []).map((f) => `Q: ${f.q}\nA: ${f.a}\n出典: ${f.src}`).join("\n\n");
   // 変わらない部分（指示＋資料）を先頭に置き、キャッシュを効かせる
   const system = `あなたは「${bot.name}」の問い合わせ窓口の案内係です。
-次の資料に書かれている内容だけをもとに、日本語でやさしく、短く（目安300字以内）答えてください。
-- 資料にないことは推測で答えず、「資料には書かれていません」と伝え、handoff を true にする
-- 個別の案件が対象になるか・採択されるかの判断はしない。一般的な決まりを示したうえで、窓口への相談を勧め、handoff を true にする
+次の資料に書かれている内容だけをもとに、日本語でやさしく、短く（目安250字以内）答えてください。
+窓口の担当者が相手の話を聞きながら案内するように、会話として続けてください。機械的な一問一答にしないこと。
+
+会話の進め方
+- 質問があいまいで、状況によって答えが変わるとき（施設・設備・車両のどれか、修理か買い替えか、資産計上しているか、小規模事業者か、賃貸・リースか など）は、先に分かる範囲で短く答えたうえで、答えを決めるのに要ることを1つだけ聞き返す。一度にいくつも聞かない
+- 聞き返すときは、答えやすいよう choices に選択肢を2〜4個（それぞれ20字以内、相手がそのまま返事に使える言い方。例：「設備（機械など）」「車両」「建物・店舗」「まだ分からない」）入れる。聞き返さないときは空の配列
+- それまでの会話で分かったこと（業種、被害を受けたもの、修理か買い替えか など）を踏まえて答え、同じことを聞き直さない
+- 答えたあと、相手の状況から次に気になりそうなこと（必要な書類、見積もり、期限 など）があれば、一言添えてもよい
+- 決まり文句（「詳しくは窓口へ」など）を毎回付けない。「大変でしたね」などの気づかいの言葉は、会話の中で最初の1回だけにする
+
+窓口へ回すとき（handoff）
+- 資料にないことは推測で答えない。まず、聞き返せば資料の範囲で答えられないかを考え、できるなら聞き返す
+- 資料に名前が出てこない品物（相手の業種の道具や機械など）を、対象・対象外と言い切らない。「資産計上されているか」「事業用にだけ使っているか」など資料の基準を示し、それを確かめる聞き返しをする
+- 聞き返しても資料に答えがないとき、または個別の案件が対象になるか・採択されるかの判断になるときだけ、そのことを伝えて「下のボタンから運営事務局へ」と案内し、handoff を true にする。それ以外は false
+
+その他
 - 金額・日付・書類名は資料の表記どおりに書く
 - src には根拠にした資料の箇所（例：公募要領 P.5）を書く。根拠がなければ空文字
 - 資料と関係のない話題には答えない
@@ -98,7 +114,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(origin) });
   if (req.method !== "POST") return reply(origin, 405, { error: "method" });
 
-  const msgs = (body.messages ?? []).slice(-8)
+  const msgs = (body.messages ?? []).slice(-12)
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content.slice(0, 600) }));
   while (msgs.length && msgs[0].role !== "user") msgs.shift();
@@ -124,7 +140,8 @@ Deno.serve(async (req) => {
     if (res.stop_reason === "end_turn" && text?.type === "text") { try { out = JSON.parse(text.text); } catch { out = null; } }
     if (!out?.answer) return reply(origin, 200, { answer: "その内容にはお答えできません。窓口へお問い合わせください。", src: "", handoff: true });
     console.log(JSON.stringify({ bot: id, usage: res.usage }));
-    return reply(origin, 200, { answer: out.answer, src: cleanSrc(out.src), handoff: out.handoff });
+    const choices = (Array.isArray(out.choices) ? out.choices : []).filter((c) => typeof c === "string" && c).slice(0, 4).map((c) => c.slice(0, 40));
+    return reply(origin, 200, { answer: out.answer, src: cleanSrc(out.src), choices, handoff: out.handoff });
   } catch (e) {
     if (e instanceof Anthropic.RateLimitError) return reply(origin, 429, { error: "busy" });
     console.error(e instanceof Anthropic.APIError ? `${e.status} ${e.message}` : e);
