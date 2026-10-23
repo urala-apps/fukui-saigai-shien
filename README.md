@@ -24,7 +24,7 @@
 | `bots/<id>.json` | お客さんごとの設定（名前・色・あいさつ・問い合わせ先・FAQ・置いてよいドメイン・月の上限） |
 | `bots/<id>.*.txt` | AI に読ませる資料（`knowledge` に書いたもの） |
 | `supabase/functions/chat/` | AI で答える Edge Function（Claude Haiku 5.5） |
-| `supabase/migrations/` | お客さんごとの月の回数を数える表（`chat_usage`）と、公開しない参考メモの表（`chat_notes`） |
+| `supabase/migrations/` | お客さんごとの月の回数（`chat_usage`）、公開しない参考メモ（`chat_notes`）、質問と答えの記録（`chat_logs`、保存期間は無制限）の表 |
 | `index.html` | 見本のページ（右端に「AIに質問する」のタブが出る） |
 
 ## 書き方の決まり
