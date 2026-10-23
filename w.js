@@ -119,6 +119,8 @@ form button.mic.on{background:#d9473a;border-color:#d9473a;color:#fff;animation:
   const scroll = () => { log.scrollTop = log.scrollHeight; };
 
   let cfg = null, started = false, busy = false;
+  // 会話ごとのランダムな番号（記録で同じ人の一連の会話をまとめるため。名前などは送らない）
+  const session = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
   const history = [];
 
   // AI 側の発言は、キャラクターと並べた行にする（前のキャラクターは止める）
@@ -167,7 +169,7 @@ form button.mic.on{background:#d9473a;border-color:#d9473a;color:#fff;animation:
     wait.append(wm); scroll();
     try {
       const res = await fetch(`${cfg.api}?bot=${id}`, { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ bot: id, messages: history.slice(-12) }) });
+        body: JSON.stringify({ bot: id, session, messages: history.slice(-12) }) });
       const j = await res.json().catch(() => ({}));
       wait.remove();
       if (!res.ok || !j.answer) { local(q); return; }
