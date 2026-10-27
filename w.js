@@ -80,6 +80,9 @@ header .ch{width:30px;height:30px;flex:none}
 .btn:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(--c);outline-offset:2px}
 .panel{position:fixed;right:16px;bottom:16px;width:380px;max-width:calc(100vw - 32px);height:600px;max-height:calc(100vh - 32px);background:var(--bg);color:var(--ink);border-radius:16px;box-shadow:0 8px 32px #0004;display:flex;flex-direction:column;overflow:hidden}
 .panel[hidden],.btn[hidden]{display:none}
+/* 大きさを変える：左上の角をつかんで動かす。見出しの「大きくする」ボタンでも切り替えられる（スマホは全画面なので出さない） */
+.grip{position:absolute;left:0;top:0;width:26px;height:26px;z-index:2;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 0 5px,#fffd 5px 7px,transparent 7px 10px,#fffd 10px 12px,transparent 12px 15px,#fffd 15px 17px,transparent 17px)}
+header button.big{font-size:18px}
 header{display:flex;align-items:center;gap:8px;padding:12px 14px;background:var(--c);color:#fff}
 header b{flex:1;font-size:15px}
 header button{background:none;border:0;color:#fff;font-size:22px;line-height:1;cursor:pointer;padding:2px 6px}
@@ -104,11 +107,12 @@ form button.mic.on{background:#d9473a;border-color:#d9473a;color:#fff;animation:
 @keyframes pulse{50%{box-shadow:0 0 0 6px #d9473a33}}
 @media (prefers-reduced-motion:reduce){form button.mic.on{animation:none}}
 .foot{padding:0 12px 8px;font-size:11px;color:var(--mut)}
-@media (max-width:480px){.panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100%;max-height:100%;border-radius:0}}
+@media (max-width:480px){.panel{right:0;bottom:0;width:100vw!important;max-width:100vw;height:100%!important;max-height:100%;border-radius:0}.grip,header button.big{display:none}}
 </style>
 <button class="btn" type="button" aria-haspopup="dialog" aria-label="AIに質問する">${CH("ch")}<span class="tx" aria-hidden="true"><span>A</span><span>I</span><span>に</span><span>質</span><span>問</span><span>す</span><span>る</span></span></button>
 <div class="panel" role="dialog" aria-modal="false" hidden>
-  <header>${CH("ch")}<b></b><button type="button" class="x" aria-label="閉じる">×</button></header>
+  <div class="grip" aria-hidden="true" title="ドラッグで大きさを変える"></div>
+  <header>${CH("ch")}<b></b><button type="button" class="big" aria-label="小窓を大きくする" title="大きくする">⤢</button><button type="button" class="x" aria-label="閉じる">×</button></header>
   <div class="log" aria-live="polite"></div>
   <form><input type="text" maxlength="300" placeholder="ご質問を入力" aria-label="ご質問"><button type="button" class="mic" aria-label="音声で入力" aria-pressed="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg></button><button type="submit">送信</button></form>
   <div class="foot"></div>
@@ -204,6 +208,33 @@ form button.mic.on{background:#d9473a;border-color:#d9473a;color:#fff;animation:
     if (!started) { started = true; say(cfg.greeting, "bot"); chips(cfg.starters || []); }
     input.focus();
   }
+  // 小窓の大きさ。変えた大きさはこのブラウザに覚えておく（覚えられないときは毎回ふつうの大きさ）
+  const W0 = 380, H0 = 600, key = "qachat-size-" + id;
+  function resize(w, h, keep) {
+    w = Math.max(320, Math.min(w, innerWidth - 32)); h = Math.max(420, Math.min(h, innerHeight - 32));
+    panel.style.width = w + "px"; panel.style.height = h + "px";
+    const big = w > W0 + 20 || h > H0 + 20, b = $(".big");
+    b.textContent = big ? "⤡" : "⤢"; b.title = big ? "元の大きさに戻す" : "大きくする";
+    b.setAttribute("aria-label", big ? "小窓を元の大きさに戻す" : "小窓を大きくする");
+    if (keep) try { localStorage.setItem(key, JSON.stringify([w, h])); } catch { /* 覚えられなくてもよい */ }
+  }
+  try { const s = JSON.parse(localStorage.getItem(key) || "null"); if (Array.isArray(s)) resize(s[0], s[1]); } catch { /* ふつうの大きさのまま */ }
+  $(".big").onclick = () => {
+    const big = panel.offsetWidth > W0 + 20 || panel.offsetHeight > H0 + 20;
+    if (big) resize(W0, H0, true); else resize(680, innerHeight - 32, true);
+  };
+  // 右下に固定しているので、左上の角を動かした分だけ広げる
+  $(".grip").addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    const x0 = e.clientX, y0 = e.clientY, w0 = panel.offsetWidth, h0 = panel.offsetHeight, g = e.currentTarget;
+    g.setPointerCapture(e.pointerId);
+    const move = (ev) => resize(w0 + x0 - ev.clientX, h0 + y0 - ev.clientY);
+    const up = () => { g.removeEventListener("pointermove", move); resize(panel.offsetWidth, panel.offsetHeight, true); };
+    g.addEventListener("pointermove", move);
+    g.addEventListener("pointerup", up, { once: true });
+    g.addEventListener("pointercancel", up, { once: true });
+  });
+
   function close() { if (rec) rec.abort(); panel.hidden = true; btn.hidden = false; btn.focus(); }
 
   // 音声入力（ブラウザの音声認識。使えないブラウザではボタンを出さない）
