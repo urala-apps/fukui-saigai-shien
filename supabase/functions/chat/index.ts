@@ -18,6 +18,8 @@ const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 type Bot = { id: string; name: string; allowed_origins: string[]; knowledge?: string[]; monthly_limit?: number };
 type Loaded = { bot: Bot; system: string; at: number };
 const cache = new Map<string, Loaded>();
+// 資料の名前（出典の欄に出るので、ファイル名ではなく利用者向けの名前にする）
+const DOC_NAMES: Record<string, string> = { "koubo.txt": "公募要領", "sharyo.txt": "車両の取扱い", "yoshiki.txt": "様式の記入のしかた" };
 
 type Answer = { answer: string; src: string; choices: string[]; handoff: boolean };
 const ANSWER_SCHEMA = {
@@ -39,7 +41,7 @@ async function load(id: string): Promise<Loaded | null> {
   const docs: string[] = [];
   for (const f of bot.knowledge ?? []) {
     const d = await fetch(`${BOTS_BASE}bots/${f}`);
-    if (d.ok) docs.push(`<document name="${f}">\n${await d.text()}\n</document>`);
+    if (d.ok) docs.push(`<document name="${DOC_NAMES[f.replace(/^[^.]*\./, "")] ?? f}">\n${await d.text()}\n</document>`);
   }
   // 公開しない参考メモ（chat_notes 表）。リポジトリには置かない
   const { data: note } = await db.from("chat_notes").select("body").eq("bot", id).maybeSingle();
@@ -93,7 +95,8 @@ const reply = (origin: string, status: number, body: unknown) => new Response(JS
 
 // 出典の欄は、公開している資料の名前とページだけにする（補足の文が出ないように）
 function cleanSrc(src: string) {
-  const s = String(src ?? "").trim();
+  let s = String(src ?? "").trim();
+  for (const [file, name] of Object.entries(DOC_NAMES)) s = s.split(new RegExp(`[\\w-]*\\.${file.replace(".", "\\.")}`)).join(name);
   if (!s || s.length > 60 || /[<>]|補足|メモ|note/i.test(s) || !/^(公募要領|車両の取扱い|様式)/.test(s)) return "";
   return s;
 }
